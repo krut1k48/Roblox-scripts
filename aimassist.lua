@@ -1,2 +1,224 @@
--- Сжатая версия через LuaSrcDiet
-local a,b,c,d,e=game,drawing,Vector2.new,a:GetService("Players"),a:GetService("UserInputService")local f,g=e.LocalPlayer,e.GetMouse()local h={Enabled=false,TeamCheck=true,WallCheck=true,Smoothness=0.2,FOV=100,Key=Enum.KeyCode.V}local i=b.new("Square")i.Visible=true i.Size=c(200,40)i.Position=c(20,20)i.Color=Color3.fromRGB(40,40,40)i.Transparency=0.7 i.Filled=true local j=b.new("Circle")j.Visible=true j.Radius=10 j.Position=c(30,40)j.Color=Color3.fromRGB(255,50,50)j.Filled=true j.Transparency=0.5 local k=b.new("Text")k.Visible=true k.Text="AIM: OFF"k.Position=c(50,32)k.Color=Color3.fromRGB(255,255,255)k.Size=16 local l=false local m=nil j.MouseButton1Down:Connect(function()l=true m=c(g.X-i.Position.X,g.Y-i.Position.Y)end)e.InputEnded:Connect(function(n)if n.UserInputType==Enum.UserInputType.MouseButton1 then l=false end end)local o=function()local p,q=nil,h.FOV for r,n in pairs(d:GetPlayers())do if n~=e and n.Character then local s=n.Character local t=s:FindFirstChild("Humanoid")local u=s:FindFirstChild("Head")if t and t.Health>0 and u then if h.TeamCheck then if n.Team and e.Team and n.Team==e.Team then continue end end if h.WallCheck then local v=workspace:Raycast(e.Character.Head.Position,(u.Position-e.Character.Head.Position),{e.Character,s})if v and v.Instance then continue end end local w,x=workspace.CurrentCamera:WorldToScreenPoint(u.Position)if x then local y=(c(g.X,g.Y)-c(w.X,w.Y)).Magnitude if y<q then q=y p=n end end end end end return p end a:GetService("RunService").RenderStepped:Connect(function()if l then local z=c(g.X-m.X,g.Y-m.Y)i.Position=z j.Position=c(z.X+10,z.Y+20)k.Position=c(z.X+40,z.Y+12)end if h.Enabled then local A=o()if A and A.Character and A.Character:FindFirstChild("Head")then local B=A.Character.Head local C=workspace.CurrentCamera:WorldToScreenPoint(B.Position)local D=c(g.X,g.Y)local E=D+(c(C.X,C.Y)-D)*h.Smoothness mousemoverel(E.X-D.X,E.Y-D.Y)end end end)j.MouseButton1Click:Connect(function()h.Enabled=not h.Enabled j.Color=h.Enabled and Color3.fromRGB(50,255,50)or Color3.fromRGB(255,50,50)k.Text="AIM: "..(h.Enabled and"ON"or"OFF")end)e.InputBegan:Connect(function(n)if n.KeyCode==h.Key then h.Enabled=not h.Enabled j.Color=h.Enabled and Color3.fromRGB(50,255,50)or Color3.fromRGB(255,50,50)k.Text="AIM: "..(h.Enabled and"ON"or"OFF")end end)local F=b.new("Circle")F.Visible=true F.Radius=6 F.Position=c(i.Position.X+i.Size.X-15,i.Position.Y+15)F.Color=Color3.fromRGB(255,100,100)F.Filled=true F.MouseButton1Click:Connect(function()i:Remove()j:Remove()k:Remove()F:Remove()end)a:GetService("RunService").RenderStepped:Connect(function()F.Position=c(i.Position.X+i.Size.X-15,i.Position.Y+15)end)print("DeadRails AimBot Loaded!")
+-- Aim Assist Toggle GUI Script for Roblox
+-- by Colin (Survival Script)
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+-- Проверяем, что исполнитель загрузил библиотеку Drawing
+if not drawing then
+    LocalPlayer:Kick("Your exploit does not support Drawing API. Use Synapse X or equivalent.")
+    return
+end
+
+-- Настройки аима
+local AimSettings = {
+    Enabled = false,
+    TeamCheck = true, -- Не целить в своих
+    WallCheck = true, -- Не целить сквозь стены
+    Smoothness = 0.2, -- Плавность (меньше = резче)
+    FOV = 100, -- Радиус прицеливания (пиксели)
+    KeyToggle = Enum.KeyCode.V -- Кнопка для переключения (V)
+}
+
+-- Создаём интерфейс
+local ScreenGui = drawing.new("Square")
+ScreenGui.Visible = true
+ScreenGui.Size = Vector2.new(200, 40)
+ScreenGui.Position = Vector2.new(20, 20)
+ScreenGui.Color = Color3.fromRGB(40, 40, 40)
+ScreenGui.Transparency = 0.7
+ScreenGui.Filled = true
+
+-- Кнопка
+local ToggleButton = drawing.new("Circle")
+ToggleButton.Visible = true
+ToggleButton.Radius = 10
+ToggleButton.Position = Vector2.new(30, 40)
+ToggleButton.Color = Color3.fromRGB(255, 50, 50)
+ToggleButton.Filled = true
+ToggleButton.Transparency = 0.5
+
+-- Текст статуса
+local StatusText = drawing.new("Text")
+StatusText.Visible = true
+StatusText.Text = "AIM: OFF"
+StatusText.Position = Vector2.new(50, 32)
+StatusText.Color = Color3.fromRGB(255, 255, 255)
+StatusText.Size = 16
+StatusText.Center = false
+
+-- Текст FOV круга
+local FOVText = drawing.new("Text")
+FOVText.Visible = false
+FOVText.Text = "FOV: " .. AimSettings.FOV
+FOVText.Position = Vector2.new(20, 60)
+FOVText.Color = Color3.fromRGB(200, 200, 200)
+FOVText.Size = 14
+FOVText.Center = false
+
+-- Круг FOV (визуализация)
+local FOVCircle = drawing.new("Circle")
+FOVCircle.Visible = false
+FOVCircle.Radius = AimSettings.FOV
+FOVCircle.Position = Vector2.new(Mouse.X, Mouse.Y)
+FOVCircle.Color = Color3.fromRGB(0, 255, 0)
+FOVCircle.Filled = false
+FOVCircle.Thickness = 1
+
+-- Функция для перетаскивания GUI
+local Dragging, DragOffset = false, nil
+ToggleButton.MouseButton1Down:Connect(function()
+    Dragging = true
+    DragOffset = Vector2.new(Mouse.X - ScreenGui.Position.X, Mouse.Y - ScreenGui.Position.Y)
+end)
+
+UIS.InputEnded:Connect(function(Input)
+    if Input.UserInputType == Enum.UserInputType.MouseButton1 then
+        Dragging = false
+    end
+end)
+
+-- Функция поиска цели
+function GetClosestPlayer()
+    local ClosestPlayer = nil
+    local ShortestDistance = AimSettings.FOV
+    
+    for _, Player in pairs(Players:GetPlayers()) do
+        if Player ~= LocalPlayer and Player.Character then
+            local Character = Player.Character
+            local Humanoid = Character:FindFirstChild("Humanoid")
+            local Head = Character:FindFirstChild("Head")
+            
+            if Humanoid and Humanoid.Health > 0 and Head then
+                -- Проверка команды
+                if AimSettings.TeamCheck then
+                    if Player.Team and LocalPlayer.Team and Player.Team == LocalPlayer.Team then
+                        continue
+                    end
+                end
+                
+                -- Проверка на стену
+                if AimSettings.WallCheck then
+                    local Raycast = workspace:Raycast(
+                        LocalPlayer.Character.Head.Position,
+                        (Head.Position - LocalPlayer.Character.Head.Position),
+                        {LocalPlayer.Character, Character}
+                    )
+                    if Raycast and Raycast.Instance then
+                        continue
+                    end
+                end
+                
+                -- Проверка угла и расстояния
+                local ScreenPoint, OnScreen = workspace.CurrentCamera:WorldToScreenPoint(Head.Position)
+                if OnScreen then
+                    local Distance = (Vector2.new(Mouse.X, Mouse.Y) - Vector2.new(ScreenPoint.X, ScreenPoint.Y)).Magnitude
+                    if Distance < ShortestDistance then
+                        ShortestDistance = Distance
+                        ClosestPlayer = Player
+                    end
+                end
+            end
+        end
+    end
+    
+    return ClosestPlayer
+end
+
+-- Основной цикл аима
+RunService.RenderStepped:Connect(function()
+    -- Перетаскивание GUI
+    if Dragging then
+        local NewPos = Vector2.new(Mouse.X - DragOffset.X, Mouse.Y - DragOffset.Y)
+        ScreenGui.Position = NewPos
+        ToggleButton.Position = Vector2.new(NewPos.X + 10, NewPos.Y + 20)
+        StatusText.Position = Vector2.new(NewPos.X + 40, NewPos.Y + 12)
+        FOVText.Position = Vector2.new(NewPos.X, NewPos.Y + 40)
+    end
+    
+    -- Обновление FOV круга
+    FOVCircle.Position = Vector2.new(Mouse.X, Mouse.Y)
+    
+    -- Аим
+    if AimSettings.Enabled then
+        local Target = GetClosestPlayer()
+        if Target and Target.Character and Target.Character:FindFirstChild("Head") then
+            local Head = Target.Character.Head
+            local Camera = workspace.CurrentCamera
+            
+            -- Плавное движение мыши
+            local TargetPosition = Camera:WorldToScreenPoint(Head.Position)
+            local CurrentPosition = Vector2.new(Mouse.X, Mouse.Y)
+            local NewPosition = CurrentPosition + (Vector2.new(TargetPosition.X, TargetPosition.Y) - CurrentPosition) * AimSettings.Smoothness
+            
+            mousemoverel(NewPosition.X - CurrentPosition.X, NewPosition.Y - CurrentPosition.Y)
+        end
+    end
+end)
+
+-- Переключение кнопкой мыши
+ToggleButton.MouseButton1Click:Connect(function()
+    AimSettings.Enabled = not AimSettings.Enabled
+    ToggleButton.Color = AimSettings.Enabled and Color3.fromRGB(50, 255, 50) or Color3.fromRGB(255, 50, 50)
+    StatusText.Text = "AIM: " .. (AimSettings.Enabled and "ON" or "OFF")
+    FOVCircle.Visible = AimSettings.Enabled
+    FOVText.Visible = AimSettings.Enabled
+end)
+
+-- Переключение горячей клавишей
+UIS.InputBegan:Connect(function(Input)
+    if Input.KeyCode == AimSettings.KeyToggle then
+        AimSettings.Enabled = not AimSettings.Enabled
+        ToggleButton.Color = AimSettings.Enabled and Color3.fromRGB(50, 255, 50) or Color3.fromRGB(255, 50, 50)
+        StatusText.Text = "AIM: " .. (AimSettings.Enabled and "ON" or "OFF")
+        FOVCircle.Visible = AimSettings.Enabled
+        FOVText.Visible = AimSettings.Enabled
+    end
+end)
+
+-- Закрытие GUI при нажатии на крестик (круг)
+local CloseButton = drawing.new("Circle")
+CloseButton.Visible = true
+CloseButton.Radius = 6
+CloseButton.Position = Vector2.new(ScreenGui.Position.X + ScreenGui.Size.X - 15, ScreenGui.Position.Y + 15)
+CloseButton.Color = Color3.fromRGB(255, 100, 100)
+CloseButton.Filled = true
+
+CloseButton.MouseButton1Click:Connect(function()
+    ScreenGui:Remove()
+    ToggleButton:Remove()
+    StatusText:Remove()
+    FOVCircle:Remove()
+    FOVText:Remove()
+    CloseButton:Remove()
+end)
+
+-- Обновление позиции крестика при перетаскивании
+RunService.RenderStepped:Connect(function()
+    CloseButton.Position = Vector2.new(ScreenGui.Position.X + ScreenGui.Size.X - 15, ScreenGui.Position.Y + 15)
+end)
+
+-- Скрытие/показ GUI при нажатии на кнопку H
+UIS.InputBegan:Connect(function(Input)
+    if Input.KeyCode == Enum.KeyCode.H then
+        local Visible = not ScreenGui.Visible
+        ScreenGui.Visible = Visible
+        ToggleButton.Visible = Visible
+        StatusText.Visible = Visible
+        CloseButton.Visible = Visible
+        if AimSettings.Enabled then
+            FOVCircle.Visible = Visible
+            FOVText.Visible = Visible
+        end
+    end
+end)
+
+print("Aim Assist GUI loaded!")
+print("Controls:")
+print("- Click button to toggle aim")
+print("- Drag GUI to move")
+print("- Press V to toggle aim")
+print("- Press H to hide/show GUI")
+print("- Click red X to close")
